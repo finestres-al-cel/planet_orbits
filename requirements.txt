@@ -1,0 +1,5 @@
+astropy >= 7.0.1
+jplephem >= 2.22
+matplotlib >= 3.10.1
+pandas >= 2.2.3
+pyqt6 >= 6.9.0
