@@ -42,11 +42,21 @@ class PlanetCoordinates:
 
         self.dates = []
         self.selected_planet = None
-        self.a_planet = None
-        self.e_planet = 0
-        self.a_earth = 1.0
-        self.e_earth = 0
+        self.planet_a = None # semi-major axis of the selected planet in AU
+        self.planet_e = 0 # eccentricity of the selected planet
+        
+        self.earth_a = 1.0
+        self.earth_e = 0
+        self.earth_phase = 0.0
+        self.relative_phase = 0.0 # relative phase of the selected planet with respect to Earth
 
+        # When plotting the model, we assume that the planet's periastron is at the
+        # x axis (-a_planet, 0) and the sun is at the centre (0, 0)
+        # phase of the first date in the selected planet in radians (with respect to the periastsron)
+        self.planet_phase = 0.0 
+        # relative phase of the planet's periastron with respect to the Earth's
+        self.relative_phase = 0.0  # relative phase of the selected planet with respect to Earth
+        
         # Initialize lists to store positions
         # Positions are stored as np.arrays for date group
         # Date groups are defined by dates at which the target planet is in the 
@@ -63,10 +73,10 @@ class PlanetCoordinates:
 
         # Initialize model positions
         self.model_time = None
-        self.model_x_planet = None
-        self.model_y_planet = None
-        self.model_x_earth = None
-        self.model_y_earth = None
+        self.model_planet_x = None
+        self.model_planet_y = None
+        self.model_earth_x = None
+        self.model_earth_y = None
 
     def reset_planet(self, planet_name):
         """
@@ -87,16 +97,16 @@ class PlanetCoordinates:
         self.planet_y.clear()
 
         if planet_name in ["Mercury", "Venus"]:
-            self.a_planet = 0.5
+            self.planet_a = 0.5
         else:
-            self.a_planet = 1.5
+            self.planet_a = 1.5
             # TODO: delte this line when the model is ready
-            self.a_planet = 1.524  # Mars semi-major axis in AU
-        self.e_planet = 0
+            self.planet_a = 1.524  # Mars semi-major axis in AU
+        self.planet_e = 0
+        self.relative_phase = 0.0
         # TODO: delte this line when the model is ready
-        self.e_planet = 0.0934  # Mars eccentricity
-        self.e_earth = 0.0167  # Earth eccentricity
-
+        self.planet_e = 0.0934  # Mars eccentricity
+        self.earth_e = 0.0167  # Earth eccentricity
 
     def set_selected_planet(self, planet_name):
         """
@@ -137,30 +147,27 @@ class PlanetCoordinates:
         planet_period = PLANET_PERIODS[self.selected_planet]
         earth_period = PLANET_PERIODS["Earth"]
 
-        # Set the model time based on the period of the selected planet
-        # and the Earth
-        if self.selected_planet in ["Mercury", "Venus"]:
-            self.model_time = np.linspace(
-                0, earth_period, N_MODEL_POINTS)  # days
-        else:
-            self.model_time = np.linspace(
-                0, planet_period, N_MODEL_POINTS) # days 
+        self.model_time_planet = np.linspace(
+            0, planet_period, N_MODEL_POINTS) # days 
+
+        self.model_time_earth = np.linspace(
+            0, earth_period, N_MODEL_POINTS)  # days
 
         #######################
         # target planet model #
         #######################
-        theta_planet = np.pi - (2 * np.pi / planet_period) * self.model_time
-        r_planet = self.a_planet * (1 - self.e_planet**2) / (1 + self.e_planet * np.cos(theta_planet))
-        self.model_x_planet = r_planet * np.cos(theta_planet)
-        self.model_y_planet = r_planet * np.sin(theta_planet)
+        planet_theta = np.pi - (2 * np.pi / planet_period) * self.model_time_planet
+        planet_r = self.planet_a * (1 - self.planet_e**2) / (1 + self.planet_e * np.cos(planet_theta - self.planet_phase))
+        self.model_planet_x = planet_r * np.cos(planet_theta)
+        self.model_planet_y = planet_r * np.sin(planet_theta)
 
         ###############
         # Earth model #
         ###############
-        theta_earth = np.pi - (2 * np.pi / earth_period) * self.model_time
-        r_earth = self.a_earth * (1 - self.e_earth**2) / (1 + self.e_earth * np.cos(theta_earth))
-        self.model_x_earth = r_earth * np.cos(theta_earth)
-        self.model_y_earth = r_earth * np.sin(theta_earth)
+        earth_theta = np.pi - (2 * np.pi / earth_period) * self.model_time_earth
+        earth_r = self.earth_a * (1 - self.earth_e**2) / (1 + self.earth_e * np.cos(earth_theta - self.earth_phase))
+        self.model_earth_x = earth_r * np.cos(earth_theta)
+        self.model_earth_y = earth_r * np.sin(earth_theta)
 
     def set_planet_positions(self, date):
         """
@@ -180,101 +187,37 @@ class PlanetCoordinates:
         if self.selected_planet is None:
             raise PlanetCoordinatesError("No planet selected.")
 
-        # Get the period of the selected planet
+        # Get the indexs of the selected dates
         planet_period = PLANET_PERIODS[self.selected_planet]
-        earth_period = PLANET_PERIODS["Earth"]
+        indexs = get_date_indexs(date, self.end_date, planet_period, self.data["Date"])
 
         ##########################
         # target planet position #
         ##########################
     
-        # Calculate the number of days since the start date
-        start_date = datetime.strptime(self.dates[0], "%Y-%m-%d")
-        current_date = datetime.strptime(date, "%Y-%m-%d")
-        days_since_start = (current_date - start_date).days
-
         # Calculate the position of the selected planet
-        theta_planet = np.array([np.pi - (2 * np.pi / planet_period) * days_since_start])
-        r_planet = self.a_planet * (1 - self.e_planet**2) / (1 + self.e_planet * np.cos(theta_planet))
-        x_planet = r_planet * np.cos(theta_planet)
-        y_planet = r_planet * np.sin(theta_planet)
+        planet_theta = self.data.loc[indexs, f"{self.selected_planet}_lon"].values[:1]
+        planet_r = self.planet_a * (1 - self.planet_e**2) / (1 + self.planet_e * np.cos(planet_theta))
+        planet_x = planet_r * np.cos(planet_theta)
+        planet_y = planet_r * np.sin(planet_theta)
         
         # Keep planet position
-        self.planet_theta[date] = theta_planet
-        self.planet_x[date] = x_planet
-        self.planet_y[date] = y_planet
+        self.planet_theta[date] = planet_theta
+        self.planet_x[date] = planet_x
+        self.planet_y[date] = planet_y
 
         ###################
         # Earth positions #
         ###################
 
-        # get ra/dec of the Sun and the target planet
-        indexs = get_date_indexs(date, self.end_date, planet_period, self.data["Date"])
-        sun_ra = self.data.loc[indexs, "Sun_RA"].values
-        sun_dec = self.data.loc[indexs, "Sun_Dec"].values
-        planet_ra = self.data.loc[indexs, f"{self.selected_planet}_RA"].values
-        planet_dec = self.data.loc[indexs, f"{self.selected_planet}_Dec"].values
-        # Convert RA and Dec to radians
-        sun_ra = np.deg2rad(sun_ra)
-        sun_dec = np.deg2rad(sun_dec)
-        planet_ra = np.deg2rad(planet_ra)
-        planet_dec = np.deg2rad(planet_dec)
+        # Assuming Earth and the selected planet are coplanar
+        earth_theta = self.data.loc[indexs, f"Earth_lon"].values
+        earth_r = self.earth_a * (1 - self.earth_e**2) / (1 + self.earth_e * np.cos(earth_theta))
+        earth_x = earth_r * np.cos(earth_theta)
+        earth_y = earth_r * np.sin(earth_theta)
         
-        # Solve the triangle formed by the Sun, Earth, and the target planet
-        #  TODO: maybe change with r_planet and r_earth
-        theta_earth = find_theta_earth(
-            sun_ra, sun_dec, planet_ra, planet_dec, self.a_earth, self.a_planet, 
-            planet_period, earth_period)
-        
-        """earth_angle = angular_separation(sun_ra, sun_dec, planet_ra, planet_dec) # distance between measured angles
-        # TODO: maybe change with r_planet and r_earth
-        planet_angle = np.asin(self.a_earth/self.a_planet * np.sin(earth_angle)) # law of sines
-        planet_angle_alt = np.pi - planet_angle
-        sun_angle = find_sun_angle(earth_angle, planet_angle, planet_angle_alt)
-
-        sun_angle = np.pi - earth_angle - planet_angle
-        sun_angle = np.mod(sun_angle, 2 * np.pi)
-        sun_angle_alt = np.pi - earth_angle - planet_angle_alt
-        sun_angle_alt = np.mod(sun_angle_alt, 2 * np.pi)
-        
-        print("######################################################") 
-        print("Sun sun_alt pred pred_alt")
-        #circular_angle = np.array([
-        #    sun_angle[0] + planet_period * index / earth_period * 2 * np.pi
-        #    for index in range(len(indexs))
-        #])
-        circular_angle = np.array([
-            sun_angle[index - 1] + planet_period / earth_period * 2 * np.pi
-            if index > 0 else sun_angle[0]
-            for index in range(sun_angle.shape[0] + 1)
-        ])
-        circular_angle = np.mod(circular_angle, 2 * np.pi)
-        #circular_angle_alt = np.array([
-        #    sun_angle_alt[0] + planet_period * index / earth_period * 2 * np.pi
-        #    for index in range(len(indexs))
-        #])
-        circular_angle_alt = np.array([
-            sun_angle_alt[index - 1] + planet_period / earth_period * 2 * np.pi
-            if index > 0 else sun_angle_alt[0]
-            for index in range(sun_angle.shape[0] + 1)
-        ])
-        circular_angle_alt = np.mod(circular_angle_alt, 2 * np.pi)
-        
-        for i1, i2, i3, i4 in zip(sun_angle, sun_angle_alt, circular_angle, circular_angle_alt):
-            print(f"{i1/np.pi:.2f} {i2/np.pi:.2f} {i3/np.pi:.2f} {i4/np.pi:.2f}")
-
-        print("######################################################")
-        """
-
-        # Assuming Earth and Mars are coplanar and Dec is 0
-        #theta_earth = np.pi - earth_angle
-        r_earth = self.a_earth * (1 - self.e_earth**2) / (1 + self.e_earth * np.cos(theta_earth))
-        earth_x = r_earth * np.cos(theta_earth)
-        earth_y = r_earth * np.sin(theta_earth)
-        
-
         # Keep Earth position 
-        self.earth_theta[date] = theta_earth # Earth angle with respect to Sun
+        self.earth_theta[date] = earth_theta # Earth angle with respect to Sun
         self.earth_x[date] = earth_x
         self.earth_y[date] = earth_y
-    
+        

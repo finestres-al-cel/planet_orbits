@@ -45,12 +45,16 @@ class CoordinatesView(QWidget):
         self.mainLayout.addWidget(self.plotCanvas, stretch=3)
 
         # Options area
-        self.a_planet_label = None
-        self.a_planet_box = None
-        self.e_planet_label = None
-        self.e_planet_box = None
-        self.e_earth_label = None
-        self.e_earth_box = None
+        self.planet_a_label = None
+        self.planet_a_box = None
+        self.planet_e_label = None
+        self.planet_e_box = None
+        self.planet_phase_label = None
+        self.planet_phase_box = None
+        self.earth_e_label = None
+        self.earth_e_box = None
+        self.earth_phase_label = None
+        self.earth_phase_box = None
         self.optionsLayout = None
         self.planetSelector = None
         self.optionsBox = self._createOptionsBox()
@@ -75,32 +79,46 @@ class CoordinatesView(QWidget):
 
         # Prepare parameter widgets but do not add yet,
         # they will be added when a planet is selected
-        # a_planet input
-        self.a_planet_label = QLabel("semi-major axis (planet) [AU]")
-        self.a_planet_box = QDoubleSpinBox()
-        self.a_planet_box.setDecimals(3)
-        self.a_planet_box.setRange(0.1, 100.0)
-        self.a_planet_box.setSingleStep(0.01)
-        self.a_planet_box.valueChanged.connect(self._onParamsChanged)
+        # planet semi-major axis input
+        self.planet_a_label = QLabel("semi-major axis (planet) [AU]")
+        self.planet_a_box = QDoubleSpinBox()
+        self.planet_a_box.setDecimals(3)
+        self.planet_a_box.setRange(0.1, 100.0)
+        self.planet_a_box.setSingleStep(0.01)
+        self.planet_a_box.valueChanged.connect(self._onParamsChanged)
 
-        # e_planet input
-        self.e_planet_label = QLabel("eccentricity (planet)")
-        self.e_planet_box = QDoubleSpinBox()
-        self.e_planet_box.setDecimals(3)
-        self.e_planet_box.setRange(0.0, 1.0)
-        self.e_planet_box.setSingleStep(0.01)
-        self.e_planet_box.valueChanged.connect(self._onParamsChanged)
+        # planet eccentricity input
+        self.planet_e_label = QLabel("eccentricity (planet)")
+        self.planet_e_box = QDoubleSpinBox()
+        self.planet_e_box.setDecimals(3)
+        self.planet_e_box.setRange(0.0, 1.0)
+        self.planet_e_box.setSingleStep(0.01)
+        self.planet_e_box.valueChanged.connect(self._onParamsChanged)
 
-        # e_earth input
-        self.e_earth_label = QLabel("eccentricity (Earth)")
-        self.e_earth_box = QDoubleSpinBox()
-        self.e_earth_box.setDecimals(3)
-        self.e_earth_box.setRange(0.0, 1.0)
-        self.e_earth_box.setSingleStep(0.01)
-        self.e_earth_box.valueChanged.connect(self._onParamsChanged)
+        # planet phase input
+        self.planet_phase_label = QLabel("phase (planet) [deg]")
+        self.planet_phase_box = QDoubleSpinBox()
+        self.planet_phase_box.setDecimals(3)
+        self.planet_phase_box.setRange(0.0, 360.0)
+        self.planet_phase_box.setSingleStep(1.0)
+        self.planet_phase_box.valueChanged.connect(self._onParamsChanged)
 
-        #layout.addStretch(1)  
-        #optionsBox.setLayout(layout)
+        # earth eccentricity input
+        self.earth_e_label = QLabel("eccentricity (Earth)")
+        self.earth_e_box = QDoubleSpinBox()
+        self.earth_e_box.setDecimals(3)
+        self.earth_e_box.setRange(0.0, 1.0)
+        self.earth_e_box.setSingleStep(0.01)
+        self.earth_e_box.valueChanged.connect(self._onParamsChanged)
+
+        # earth phase input
+        self.earth_phase_label = QLabel("phase (planet) [deg]")
+        self.earth_phase_box = QDoubleSpinBox()
+        self.earth_phase_box.setDecimals(3)
+        self.earth_phase_box.setRange(0.0, 360.0)
+        self.earth_phase_box.setSingleStep(1.0)
+        self.earth_phase_box.valueChanged.connect(self._onParamsChanged)
+        
         self.optionsLayout.addStretch(1) # Push buttons to the top    
         optionsBox.setLayout(self.optionsLayout)
 
@@ -140,14 +158,14 @@ class CoordinatesView(QWidget):
             self.ax.plot(planet_x, planet_y, 'ro', label=self.planetCoordinates.selected_planet)
 
             # Plot Earth's orbit
-            model_x_earth = self.planetCoordinates.model_x_earth
-            model_y_earth = self.planetCoordinates.model_y_earth
-            self.ax.plot(model_x_earth, model_y_earth, 'b-', label="Earth's Orbit")
+            model_earth_x = self.planetCoordinates.model_earth_x
+            model_earth_y = self.planetCoordinates.model_earth_y
+            self.ax.plot(model_earth_x, model_earth_y, 'b-', label="Earth's Orbit")
 
             # Plot Target planet's orbit
-            model_x_planet = self.planetCoordinates.model_x_planet
-            model_y_planet = self.planetCoordinates.model_y_planet
-            self.ax.plot(model_x_planet, model_y_planet, 'r-', label=f"{self.planetCoordinates.selected_planet}'s Orbit")
+            model_planet_x = self.planetCoordinates.model_planet_x
+            model_planet_y = self.planetCoordinates.model_planet_y
+            self.ax.plot(model_planet_x, model_planet_y, 'r-', label=f"{self.planetCoordinates.selected_planet}'s Orbit")
 
             # Add legend
             self.ax.legend()
@@ -156,9 +174,11 @@ class CoordinatesView(QWidget):
 
     def _onParamsChanged(self):
         """Update model parameters and refresh plot when any parameter changes."""
-        self.planetCoordinates.a_planet = self.a_planet_box.value()
-        self.planetCoordinates.e_planet = self.e_planet_box.value()
-        self.planetCoordinates.e_earth = self.e_earth_box.value()
+        self.planetCoordinates.planet_a = self.planet_a_box.value()
+        self.planetCoordinates.planet_e = self.planet_e_box.value()
+        self.planetCoordinates.planet_phase = np.deg2rad(self.planet_phase_box.value())
+        self.planetCoordinates.earth_e = self.earth_e_box.value()
+        self.planetCoordinates.earth_phase = np.deg2rad(self.earth_phase_box.value())
         # Recompute positions for the current planet and date
         if self.planetCoordinates.selected_planet is not None:
             self.planetCoordinates.set_planet_positions(self.planetCoordinates.dates[0])
@@ -169,9 +189,11 @@ class CoordinatesView(QWidget):
         """Handle planet selection from the dropdown menu."""
         #self.planetCoordinates.set_selected_planet(selected_planet)
         #self._loadData()  # Reload the data and update the plot
-        for widget in [self.a_planet_label, self.a_planet_box,
-                    self.e_planet_label, self.e_planet_box,
-                    self.e_earth_label, self.e_earth_box]:
+        for widget in [self.planet_a_label, self.planet_a_box,
+                    self.planet_e_label, self.planet_e_box,
+                    self.planet_phase_label, self.planet_phase_box,
+                    self.earth_e_label, self.earth_e_box,
+                    self.earth_phase_label, self.earth_phase_box,]:
             self.optionsLayout.removeWidget(widget)
             widget.setParent(None)
 
@@ -182,24 +204,32 @@ class CoordinatesView(QWidget):
 
         # Set default values
         self.planetCoordinates.set_selected_planet(selected_planet)
-        self.a_planet_box.setValue(self.planetCoordinates.a_planet)
-        self.e_planet_box.setValue(self.planetCoordinates.e_planet)
-        self.e_earth_box.setValue(self.planetCoordinates.e_earth)
+        self.planet_a_box.setValue(self.planetCoordinates.planet_a)
+        self.planet_e_box.setValue(self.planetCoordinates.planet_e)
+        self.planet_phase_box.setValue(self.planetCoordinates.planet_phase)
+        self.earth_e_box.setValue(self.planetCoordinates.earth_e)
+        self.earth_phase_box.setValue(self.planetCoordinates.earth_phase)
 
         # Update labels
-        self.a_planet_label = QLabel(
+        self.planet_a_label = QLabel(
             f"semi-major axis ({self.planetCoordinates.selected_planet}) [AU]")
-        self.e_planet_label = QLabel(
+        self.planet_e_label = QLabel(
             f"eccentricity ({self.planetCoordinates.selected_planet})")
+        self.planet_phase_label = QLabel(
+            f"phase ({self.planetCoordinates.selected_planet}) [deg]")
         
         # Add parameter widgets
-        self.optionsLayout.insertWidget(1, self.a_planet_label)
-        self.optionsLayout.insertWidget(2, self.a_planet_box)
-        self.optionsLayout.insertWidget(3, self.e_planet_label)
-        self.optionsLayout.insertWidget(4, self.e_planet_box)
-        self.optionsLayout.insertWidget(5, self.e_earth_label)
-        self.optionsLayout.insertWidget(6, self.e_earth_box)
-
+        self.optionsLayout.insertWidget(1, self.planet_a_label)
+        self.optionsLayout.insertWidget(2, self.planet_a_box)
+        self.optionsLayout.insertWidget(3, self.planet_e_label)
+        self.optionsLayout.insertWidget(4, self.planet_e_box)
+        self.optionsLayout.insertWidget(5, self.planet_phase_label)
+        self.optionsLayout.insertWidget(6, self.planet_phase_box)
+        self.optionsLayout.insertWidget(7, self.earth_e_label)
+        self.optionsLayout.insertWidget(8, self.earth_e_box)
+        self.optionsLayout.insertWidget(9, self.earth_phase_label)
+        self.optionsLayout.insertWidget(10, self.earth_phase_box)
+        
         self._loadData()        
 
     def _resetPlot(self):

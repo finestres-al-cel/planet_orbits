@@ -1,5 +1,5 @@
 from astropy.time import Time
-from astropy.coordinates import get_body, solar_system_ephemeris
+from astropy.coordinates import get_body, solar_system_ephemeris, BarycentricTrueEcliptic
 import astropy.units as u
 from datetime import datetime, timedelta
 import pandas as pd
@@ -10,7 +10,7 @@ def main(args):
     dates = Time(np.arange(args.start_date, args.end_date, args.date_step, dtype="datetime64[D]"))
 
     # Planets of interest
-    bodies = ["sun", "mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune"]
+    bodies = ["sun", "mercury", "venus", "earth", "mars", "jupiter", "saturn", "uranus", "neptune"]
 
     # Dictionary to store the data
     data = {"Date": [date.strftime('%Y-%m-%d') for date in dates.datetime]}
@@ -22,8 +22,15 @@ def main(args):
             ra = coords.icrs.ra.deg  # RA in degrees
             dec = coords.icrs.dec.deg  # Dec in degrees
 
+            coords_ecliptic = coords.transform_to(BarycentricTrueEcliptic())
+            lon = coords_ecliptic.lon.deg
+            lat = coords_ecliptic.lat.deg
+
             data[f"{body.capitalize()}_RA"] = ra
             data[f"{body.capitalize()}_Dec"] = dec
+
+            data[f"{body.capitalize()}_lon"] = lon
+            data[f"{body.capitalize()}_lat"] = lat
 
     # Create data frame
     df = pd.DataFrame(data)

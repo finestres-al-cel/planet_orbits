@@ -54,7 +54,7 @@ def angular_separation(ra1, dec1, ra2, dec2):
     
     return theta
 
-def find_theta_earth(sun_ra, sun_dec, planet_ra, planet_dec, r_earth, r_planet, planet_period, earth_period):
+def find_theta_earth(sun_ra, sun_dec, planet_ra, planet_dec, r_earth, r_planet, planet_period, earth_period, theta_planet):
     """
     Solve the triangle formed by the Sun, Earth, and the target planet. 
     Compute the angle theta_earth, which is the angular separation between Earth and the target planet.
@@ -85,6 +85,9 @@ def find_theta_earth(sun_ra, sun_dec, planet_ra, planet_dec, r_earth, r_planet, 
     earth_period: float
     Orbital period of Earth in days.
 
+    theta_planet: float
+    Angular position of the target planet in radians, relative to the Sun.
+
     Returns
     -------
     theta_sun: float 
@@ -100,6 +103,12 @@ def find_theta_earth(sun_ra, sun_dec, planet_ra, planet_dec, r_earth, r_planet, 
     aux_theta_sun1 = np.mod(np.pi - theta_earth - theta_planet1, 2 * np.pi)
     aux_theta_sun2 = np.mod(np.pi - theta_earth - theta_planet2, 2 * np.pi)
     
+    # Adjust the angles to be relative to the planet's position
+    aux_theta_sun1 = np.mod(aux_theta_sun1 + theta_planet, 2 * np.pi)
+    aux_theta_sun2 = np.mod(aux_theta_sun2 + theta_planet, 2 * np.pi)
+    #aux_theta_sun1 = np.mod(theta_earth + theta_planet, 2 * np.pi)
+    #aux_theta_sun2 = np.mod(-theta_earth + theta_planet, 2 * np.pi)
+
     # To select the correct angle, we compare the difference between the measured angles 
     # and the simplified approximation of constant angle growth (assuming circular orbits) 
     # We do this twice, once for each starting angle, and we keep the one that has smaller 
@@ -142,6 +151,7 @@ def find_theta_earth(sun_ra, sun_dec, planet_ra, planet_dec, r_earth, r_planet, 
     else:
         theta_sun = theta_sun_option2
 
+    # Adjust the angle to be relative to the planet's position
     return theta_sun
      
 def get_date_indexs(start_date_str, end_date_str, date_step, date_list):
