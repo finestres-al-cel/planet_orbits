@@ -166,6 +166,7 @@ class CoordinatesView(QWidget):
             model_planet_x = self.planetCoordinates.model_planet_x
             model_planet_y = self.planetCoordinates.model_planet_y
             self.ax.plot(model_planet_x, model_planet_y, 'r-', label=f"{self.planetCoordinates.selected_planet}'s Orbit")
+            print()
 
             # Add legend
             self.ax.legend()
@@ -202,6 +203,13 @@ class CoordinatesView(QWidget):
             self._loadData()
             return
 
+        # Block signals while setting default values
+        self.planet_a_box.blockSignals(True)
+        self.planet_e_box.blockSignals(True)
+        self.planet_phase_box.blockSignals(True)
+        self.earth_e_box.blockSignals(True)
+        self.earth_phase_box.blockSignals(True)
+
         # Set default values
         self.planetCoordinates.set_selected_planet(selected_planet)
         self.planet_a_box.setValue(self.planetCoordinates.planet_a)
@@ -209,6 +217,16 @@ class CoordinatesView(QWidget):
         self.planet_phase_box.setValue(self.planetCoordinates.planet_phase)
         self.earth_e_box.setValue(self.planetCoordinates.earth_e)
         self.earth_phase_box.setValue(self.planetCoordinates.earth_phase)
+
+        # Unblock signals
+        self.planet_a_box.blockSignals(False)
+        self.planet_e_box.blockSignals(False)
+        self.planet_phase_box.blockSignals(False)
+        self.earth_e_box.blockSignals(False)
+        self.earth_phase_box.blockSignals(False)
+
+        # Now trigger the update only once
+        self._onParamsChanged()
 
         # Update labels
         self.planet_a_label = QLabel(
