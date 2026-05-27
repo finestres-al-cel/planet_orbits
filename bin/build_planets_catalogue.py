@@ -1,4 +1,6 @@
 import argparse
+import traceback
+
 import pandas as pd
 
 from planet_orbits.query_horizon import concatenate_queries, OBJIDS    
@@ -24,12 +26,16 @@ def main(args):
             df = concatenate_queries(
                 args.start_date, args.stop_date, args.step_size, OBJIDS[planet], break_times=args.break_times)
         except RuntimeError as e:
-            print(f"Error occurred while querying {planet}: {e}")
+            print(f"Error occurred while querying {planet}:")
+            traceback.print_exc()
+            print(f"{type(e).__name__}: {e}")
             print("Try again with a smaller break_time, or a smaller time range (start_date, stop_date).")
             print("Skipping object.")
             continue
         except Exception as e:
-            print(f"An unexpected error occurred while querying {planet}: {e}")
+            print(f"An unexpected error occurred while querying {planet}:")
+            traceback.print_exc()
+            print(f"{type(e).__name__}: {e}")
             print("Skipping object.")
             continue
         dfs.append(df)
@@ -40,9 +46,9 @@ def main(args):
         df = dfs[0]
     else:
         print("Merging data into a single dataframe...")
-        df = pd.merge(dfs[0], dfs[1], on="Date", how="outer")
+        df = pd.merge(dfs[0], dfs[1])
         for index in range(2, len(dfs)):
-            df = pd.merge(df, dfs[index], on="Date", how="outer")
+            df = pd.merge(df, dfs[index])
 
     # Save data
     if args.filename.endswith(".fits") or args.filename.endswith(".fits.gz"):
