@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "planet-orbits"
+version = "0.1.0"
+description = "Tools and a GUI app to compute and visualize solar-system body coordinates."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-or-later" }
+authors = [
+  { name = "iprafols" }
+]
+dynamic = ["dependencies"]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "pylint",
+  "yapf"
+]
+
+[project.urls]
+Homepage = "https://github.com/finestres-al-cel/planet_orbits"
+Repository = "https://github.com/finestres-al-cel/planet_orbits"
+
+[tool.setuptools]
+include-package-data = true
+script-files = [
+  "bin/build_planets_catalogue.py",
+  "bin/planet_orbits_app.py",
+  "bin/plot_positions.py"
+]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.packages.find]
+include = ["planet_orbits*"]
+
+[tool.setuptools.package-data]
+planet_orbits = ["app/button_plots/*.png"]
