@@ -59,6 +59,7 @@ class PlanetOrbitalSolver:
         # Placeholder for the opposition dates of the selected planet, to be computed when a planet is selected
         self.data_oppositions = None
         self.data_oppositions_series = []
+        self.data_oppositions_series_plot = []
 
         """Old code
 
@@ -186,7 +187,13 @@ class PlanetOrbitalSolver:
         """
         if self.data_oppositions is None:
             raise PlanetOrbitalSolverError("No oppositions found. Please run find_oppositions() first.")
-        
+
+        # if series are already computed, return the lengths of the series
+        if len(self.data_oppositions_series) > 0:
+            series_lengths = [series.shape[0] for series in self.data_oppositions_series]
+            return series_lengths, self.data_oppositions_series_plot
+
+        # otherwiser compute the yearly series for each opposition date
         series_lengths = []
         for index in range(self.data_oppositions.shape[0]):
             initial_date = self.data_oppositions.loc[index, "date"]
@@ -240,8 +247,12 @@ class PlanetOrbitalSolver:
 
             series_data = pd.DataFrame(series_rows)
             self.data_oppositions_series.append(series_data)
-        
-        return series_lengths 
+
+        # setup plotting flags for the series
+        # default is to plot all the series, but the user can select which ones to plot in the UI
+        self.data_oppositions_series_plot = [True]*len(self.data_oppositions_series)
+    
+        return series_lengths, self.data_oppositions_series_plot
 
     def reset_planet(self, planet_name):
         """
@@ -262,6 +273,7 @@ class PlanetOrbitalSolver:
         # reset opposition data
         self.data_oppositions = None
         self.data_oppositions_series = []
+        self.data_oppositions_series_plot = []
         """Old code
         self.dates = [self.start_date]
 

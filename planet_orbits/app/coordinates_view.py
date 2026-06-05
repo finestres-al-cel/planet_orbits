@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
 )
 
 from planet_orbits.app.error_dialog import ErrorDialog
-from planet_orbits.app.success_dialog import SuccessDialog
+from planet_orbits.app.oppositions_dialog import OppositionsDialog
 
 class CoordinatesView(QWidget):
     """Coordinates View
@@ -222,12 +222,18 @@ class CoordinatesView(QWidget):
             infoDialog = ErrorDialog(f"No oppositions found for the planet {self.planetOrbitalSolver.selected_planet.capitalize()}.")
             infoDialog.exec()
         else:
-            series_lengths = self.planetOrbitalSolver.find_oppositions_series()
-            message = f"Found {oppositions.size} oppositions for the planet {self.planetOrbitalSolver.selected_planet.capitalize()}:\n\n"
-            for opposition, series_length in zip(oppositions, series_lengths):
-                message += opposition.strftime('%Y-%m-%d %H:%M:%S') + f" (Series length: {series_length})\n"
-            oppositionsDialog = SuccessDialog(message)
-            oppositionsDialog.exec()
+            series_lengths, plot_flags = self.planetOrbitalSolver.find_oppositions_series()
+            oppositionsDialog = OppositionsDialog(
+                self.planetOrbitalSolver.selected_planet,
+                oppositions,
+                series_lengths,
+                plot_flags,
+                parent=self,
+            )
+            if oppositionsDialog.exec():
+                selected_rows = oppositionsDialog.selected_rows_to_plot()
+    
+                self.planetOrbitalSolver.data_oppositions_series_plot = selected_rows
         
 
     def _onParamsChanged(self):
