@@ -136,7 +136,7 @@ def parse_query_results(results):
         f"{body.lower()}_ra": ra_list,
         f"{body.lower()}_dec": dec_list,
     })
-    df['Date'] = pd.to_datetime(df['Date'])
+    df['date'] = pd.to_datetime(df['date'])
     return df
 
 def query(start_time, stop_time, step_size, objid):
