@@ -27,8 +27,8 @@ from planet_orbits.app.load_actions import (
     loadFileMenuActions,
 )
 from planet_orbits.app.success_dialog import SuccessDialog
-from planet_orbits.errors import PlanetCoordinatesError
-from planet_orbits.planet_coordinates import PlanetCoordinates
+from planet_orbits.errors import PlanetOrbitalSolverError
+from planet_orbits.planet_orbital_solver import PlanetOrbitalSolver
 
 class MainWindow(QMainWindow):
     """Main Window
@@ -101,7 +101,7 @@ class MainWindow(QMainWindow):
         self._createMenuBar()
 
         # define variables
-        self.planetCoordinates = None
+        self.planetOrbitalSolver = None
         self.coordinatesView = None
 
     def _createToolBar(self):
@@ -139,8 +139,8 @@ class MainWindow(QMainWindow):
 
         if filename:
             try:
-                # Initialize the PlanetCoordinates class and load the data
-                self.planetCoordinates = PlanetCoordinates(filename)
+                # Initialize the planetOrbitalSolver class and load the data
+                self.planetOrbitalSolver = PlanetOrbitalSolver(filename)
                 
             except Exception as e:
                 # Show error dialog
@@ -149,10 +149,10 @@ class MainWindow(QMainWindow):
                 raise e
 
             try:
-                self.coordinatesView = CoordinatesView(self.planetCoordinates)
+                self.coordinatesView = CoordinatesView(self.planetOrbitalSolver)
                 self.setCentralWidget(self.coordinatesView)
 
-            except PlanetCoordinatesError as error:
+            except PlanetOrbitalSolverError as error:
                 errorDialog = ErrorDialog(
                     "An error occurred when displaying data:\n" + str(error))
                 errorDialog.exec()

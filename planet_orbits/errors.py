@@ -1,7 +1,7 @@
 """This module define the different Error types related to the
 package pk_determination
 """
-class PlanetCoordinatesError(Exception):
+class PlanetOrbitalSolverError(Exception):
     """
-        Exceptions occurred in class PlanetCoordinates
+        Exceptions occurred in class PlanetOrbitalSolver
     """
