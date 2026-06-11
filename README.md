@@ -1,9 +1,10 @@
 # planet_orbits
 
 ## Installation
-It is recommended to use a clean environment:
+It is recommended to use a clean conda environment. You can choose the python version 
+(for example 3.13). Replace VERSION with your choice in the following command:
 ```
-conda create -n my_planet_orbits_env python==version
+conda create -n my_planet_orbits_env python==VERSION
 conda activate my_planet_orbits_env
 ```
 If you already have an environment, you just need to activate it.
