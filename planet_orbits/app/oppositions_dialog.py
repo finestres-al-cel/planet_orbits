@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -50,6 +51,10 @@ class OppositionsDialog(QDialog):
         self.table.verticalHeader().setVisible(False)
         self.plot_checkboxes = []
 
+        toggle_all_button = QPushButton("Check/Uncheck All Plot")
+        toggle_all_button.clicked.connect(self._toggle_all_plot_flags)
+        layout.addWidget(toggle_all_button)
+
         for row, (opposition, series_length, plot_flag) in enumerate(zip(oppositions, series_lengths, plot_flags)):
             date_item = QTableWidgetItem(opposition.strftime("%Y-%m-%d %H:%M:%S"))
             date_item.setFlags(date_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
@@ -83,3 +88,9 @@ class OppositionsDialog(QDialog):
     def selected_rows_to_plot(self):
         """Return a flag list indicating which oppositions are selected for plotting."""
         return [checkbox.isChecked() for checkbox in self.plot_checkboxes]
+
+    def _toggle_all_plot_flags(self):
+        """Toggle all plot checkboxes at once."""
+        should_check_all = not all(checkbox.isChecked() for checkbox in self.plot_checkboxes)
+        for checkbox in self.plot_checkboxes:
+            checkbox.setChecked(should_check_all)

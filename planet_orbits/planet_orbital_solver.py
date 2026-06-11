@@ -1,32 +1,33 @@
 """Define the PlanetOrbitalSolver class to handle planet coordinates in a 
 solar system simulation."""
-from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 from scipy.interpolate import CubicSpline
 from scipy.optimize import minimize_scalar
 
 from planet_orbits.errors import PlanetOrbitalSolverError
-#from planet_orbits.utils import find_theta_earth, get_date_indexs
-from planet_orbits.utils import angular_separation
+from planet_orbits.utils import add_ecliptic_coordinates, angular_separation, orbital_radius, solve_triangle
 
 # Angular tolerance for finding oppositions (in radians)
 ANGULAR_TOLERANCE_RADIANS = np.radians(10)  # 10 degrees
+ 
 
 # Number of model points to compute
 N_MODEL_POINTS = 1000
 
 # periods of planets in Earth days
+# currently based on data from https://en.wikipedia.org/wiki/Solar_System
 PLANET_PERIODS = {
-    "mercury": 88,
-    "venus": 225,
-    "earth": 365,
-    "mars": 687,
-    "jupiter": 4333,
-    "saturn": 10759,
-    "uranus": 30687,
-    "neptune": 60190,
+    "mercury": 87.969,
+    "venus": 224.701,
+    "earth": 365.256,
+    "mars": 686.980, # I also found this value with higher precision (not sure where from, need to double-check): 686.97959
+    "jupiter": 4332.589,
+    "saturn": 10759.22,
+    "uranus": 30688.5,
+    "neptune": 60182.0,
 }
+
 
 class PlanetOrbitalSolver:
     """
@@ -44,11 +45,20 @@ class PlanetOrbitalSolver:
         self.filename = filename
         self.data = pd.read_csv(filename, parse_dates=["date"])
 
+        print("Loaded data")
+        print(self.data.iloc[::24])
+
         self.available_planets = [
             col.split("_")[0]
             for col in self.data.columns
             if col.endswith("_ra") and col.split("_")[0] != "sun"
         ]
+
+        self.data = add_ecliptic_coordinates(self.data, names=["sun"] + self.available_planets)
+
+        print("Added ecliptic coordinates")
+        print(self.data.iloc[::24])
+
 
         self.selected_planet = None
 
@@ -61,43 +71,60 @@ class PlanetOrbitalSolver:
         self.data_oppositions_series = []
         self.data_oppositions_series_plot = []
 
-        """Old code
+        # Placeholder for the orbital parameters of the selected planet, to be set when a planet is selected
+        self.planet_semimajor_axis = None # semi-major axis of the selected planet in AU
+        self.planet_eccentricity = None # eccentricity of the selected planet
+        self.planet_phase = None # phase of the first date in the selected planet in radians (with respect to the periastsron)
+        self.earth_semimajor_axis = 1.0 # semi-major axis of the Earth in AU
+        self.earth_eccentricity = 0.0167 # eccentricity of the Earth
+        self.earth_phase = 0.0 # phase of the first date in Earth in radians (with respect to the periastsron)
 
-        self.planet_a = None # semi-major axis of the selected planet in AU
-        self.planet_e = 0 # eccentricity of the selected planet
-        
-        self.earth_a = 1.0
-        self.earth_e = 0
-        self.earth_phase = 0.0
-        
-        # When plotting the model, we assume that the planet's periastron is at the
-        # x axis (-a_planet, 0) and the sun is at the centre (0, 0)
-        # phase of the first date in the selected planet in radians (with respect to the periastsron)
-        self.planet_phase = 0.0 
-        # relative phase of the planet's periastron with respect to the Earth's
-        self.relative_phase = 0.0  # relative phase of the selected planet with respect to Earth
-        
         # Initialize lists to store positions
         # Positions are stored as np.arrays for date group
         # Date groups are defined by dates at which the target planet is in the 
         # same position, determined by the period of the planet
         # keys are the first date of the group
-        self.earth_theta = {}
-        self.earth_x = {}
-        self.earth_y = {}
-        self.planet_theta = {}
-        self.planet_x = {}
-        self.planet_y = {}
-        self.sun_x = 0
-        self.sun_y = 0
+        self.earth_coordinates = {}
+        self.planet_coordinates = {}
+        self.sun_coordinates = (0, 0)
 
+        # Initialize metrics
+        self.metrics = {}
+        self.total_dispersion = 0.0
+        self.total_chi2 = 0.0
+        self.total_points = 0
+        
         # Initialize model positions
         self.model_time = None
-        self.model_planet_x = None
-        self.model_planet_y = None
-        self.model_earth_x = None
-        self.model_earth_y = None
-        """
+        self.model_planet = None
+        self.model_earth = None
+
+    def compute_orbital_models(self):
+        """Compute the theoretical orbital models for the selected planet and Earth based on their orbital parameters."""
+        if self.selected_planet is None:
+            raise PlanetOrbitalSolverError("No planet selected.")
+
+        theta = np.linspace(0, 2*np.pi, N_MODEL_POINTS)
+
+        #######################
+        # target planet model #
+        #######################
+        planet_r = orbital_radius(
+            self.planet_semimajor_axis, self.planet_eccentricity, theta, self.planet_phase)
+        self.model_planet = (
+            planet_r * np.cos(theta),
+            planet_r * np.sin(theta)
+        )
+
+        ###############
+        # Earth model #
+        ###############
+        earth_r = orbital_radius(
+            self.earth_semimajor_axis, self.earth_eccentricity, theta, self.earth_phase)
+        self.model_earth = (
+            earth_r * np.cos(theta),
+            earth_r * np.sin(theta)
+        )
 
     def find_oppositions(self):
         """
@@ -118,6 +145,7 @@ class PlanetOrbitalSolver:
             raise PlanetOrbitalSolverError("No planet selected.")
 
         # Find the dates of oppositions using the data
+        """
         angle_sun_planet = angular_separation(
             np.radians(self.data["sun_ra"].values),
             np.radians(self.data["sun_dec"].values),
@@ -125,13 +153,21 @@ class PlanetOrbitalSolver:
             np.radians(self.data[f"{self.selected_planet}_dec"].values)
         )
         diff = np.pi - angle_sun_planet
+        """
+        sun_lon_anti = (self.data["sun_lon"] + 180) % 360
+        diff = np.radians(np.fabs(sun_lon_anti - self.data[f"{self.selected_planet}_lon"].values))
         opposition_indices = np.where(np.isclose(diff, 0, atol=ANGULAR_TOLERANCE_RADIANS))[0]
         
+        """
         cols = ["date", "sun_ra", "sun_dec", f"{self.selected_planet}_ra", f"{self.selected_planet}_dec"]
-        df_aux = self.data.iloc[opposition_indices][cols].copy().reset_index(drop=True)
+        """
+        cols = ["date", "sun_lon", f"{self.selected_planet}_lon"]
+        df_aux = self.data.iloc[opposition_indices][cols].copy()#.reset_index(drop=True)
+        """
         df_aux["angle_sun_planet"] = np.degrees(angle_sun_planet[opposition_indices])
-        df_aux["delta_angle"] = (diff[opposition_indices])
-
+        """
+        df_aux["delta_angle"] = np.degrees(diff[opposition_indices])
+        
         consecutive_groups = (df_aux["date"].diff() != pd.Timedelta(hours=1)).cumsum()
         opposition_rows = []
         for _, group in df_aux.groupby(consecutive_groups):
@@ -144,6 +180,7 @@ class PlanetOrbitalSolver:
             date_min_spline = group["date"].iloc[0] + pd.to_timedelta(delta_time_min_spline, unit="s")
 
             # now that we have the estimated time, use a cubic interpolation to find the corresponding coordinates 
+            """
             cs_sun_ra = CubicSpline(delta_times, group["sun_ra"])
             cs_sun_dec = CubicSpline(delta_times, group["sun_dec"])
             cs_planet_ra = CubicSpline(delta_times, group[f"{self.selected_planet}_ra"])
@@ -153,24 +190,52 @@ class PlanetOrbitalSolver:
             sun_dec = cs_sun_dec(delta_time_min_spline)  
             planet_ra = cs_planet_ra(delta_time_min_spline)
             planet_dec = cs_planet_dec(delta_time_min_spline)
-            angle_sun_planet = angular_separation(
-                np.radians(sun_ra), np.radians(sun_dec), np.radians(planet_ra), np.radians(planet_dec))
+            #angle_sun_planet = angular_separation(
+            #    np.radians(sun_ra), np.radians(sun_dec), np.radians(planet_ra), np.radians(planet_dec))
+            """
+            cs_sun_lon = CubicSpline(delta_times, group["sun_lon"])
+            cs_planet_lon = CubicSpline(delta_times, group[f"{self.selected_planet}_lon"]) 
 
+            interp_sun_lon = cs_sun_lon(delta_time_min_spline)
+            interp_sun_lon_anti = (interp_sun_lon + 180) % 360
+            interp_planet_lon = cs_planet_lon(delta_time_min_spline)
+            interp_diff = np.fabs(interp_sun_lon_anti - interp_planet_lon)
+
+            """
             opposition_row = {
                 "date": date_min_spline,
                 "sun_ra": sun_ra,
                 "sun_dec": sun_dec,
                 f"{self.selected_planet}_ra": planet_ra,
                 f"{self.selected_planet}_dec": planet_dec,
-                "angle_sun_planet": np.degrees(angle_sun_planet),
-                "delta_angle": np.degrees(np.pi - angle_sun_planet)
+                #"angle_sun_planet": np.degrees(angle_sun_planet),
+                #"delta_angle": np.degrees(np.pi - angle_sun_planet)
 
+            }
+            """
+
+            opposition_row = {
+                "date": date_min_spline,
+                "sun_lon": interp_sun_lon,
+                f"{self.selected_planet}_lon": interp_planet_lon,
+                #"angle_sun_planet": np.degrees(interp_diff),
+                "delta_angle": interp_diff,
             }
 
             opposition_rows.append(opposition_row)
 
         self.data_oppositions = pd.DataFrame(opposition_rows)
-        
+
+        print("Found oppositions:")
+        print(self.data_oppositions)
+
+        print("\n")
+        t_syn_calc = self.data_oppositions["date"].diff().dt.days.mean()
+        # Outer planet synodic equation: 1/T_syn = 1/T_earth − 1/T_sid
+        t_sid_calc = 1.0 / ((1.0 / PLANET_PERIODS.get("earth")) - (1.0 / t_syn_calc))
+        print(f"Synodic period  (T_syn)  for {self.selected_planet}: {t_syn_calc}")
+        print(f"Sidereal period (T_sid) for {self.selected_planet}: {t_sid_calc}")
+
         return self.data_oppositions["date"]
     
     def find_oppositions_series(self):
@@ -193,7 +258,7 @@ class PlanetOrbitalSolver:
             series_lengths = [series.shape[0] for series in self.data_oppositions_series]
             return series_lengths, self.data_oppositions_series_plot
 
-        # otherwiser compute the yearly series for each opposition date
+        # otherwise compute the yearly series for each opposition date
         series_lengths = []
         for index in range(self.data_oppositions.shape[0]):
             initial_date = self.data_oppositions.loc[index, "date"]
@@ -206,25 +271,33 @@ class PlanetOrbitalSolver:
             series_lengths.append(series_length)
             
             series_rows = []
+            """
             series_rows.append({
                 "date": self.data_oppositions.loc[index, "date"],
-                "sun_ra": self.data_oppositions.loc[index, "sun_ra"],
-                "sun_dec": self.data_oppositions.loc[index, "sun_dec"],
-                f"{self.selected_planet}_ra": self.data_oppositions.loc[index, f"{self.selected_planet}_ra"],
-                f"{self.selected_planet}_dec": self.data_oppositions.loc[index, f"{self.selected_planet}_dec"],
-                "angle_sun_planet": self.data_oppositions.loc[index, "angle_sun_planet"],
-                "delta_angle": self.data_oppositions.loc[index, "delta_angle"],
+                "sun_ra": np.float64(self.data_oppositions.loc[index, "sun_ra"]),
+                "sun_dec": np.float64(self.data_oppositions.loc[index, "sun_dec"]),
+                f"{self.selected_planet}_ra": np.float64(self.data_oppositions.loc[index, f"{self.selected_planet}_ra"]),
+                f"{self.selected_planet}_dec": np.float64(self.data_oppositions.loc[index, f"{self.selected_planet}_dec"]),
+                "angle_sun_planet": np.float64(self.data_oppositions.loc[index, "angle_sun_planet"]),
+                #"delta_angle": np.float64(self.data_oppositions.loc[index, "delta_angle"]),
+            })
+            """
+            series_rows.append({
+                "date": self.data_oppositions.loc[index, "date"],
+                "sun_lon": np.float64(self.data_oppositions.loc[index, "sun_lon"]),
+                f"{self.selected_planet}_lon": np.float64(self.data_oppositions.loc[index, f"{self.selected_planet}_lon"]),
             })
 
             for index in range(1, series_length):
                 current_date = initial_date + pd.Timedelta(seconds=round(index*period_in_seconds))
 
-                # select some dates around date2 to interpolate the coordinates
+                # select some dates around current_date to interpolate the coordinates
                 dates_around_current_date = self.data[
                     (self.data["date"] > current_date - pd.Timedelta(hours=10)) & 
                     (self.data["date"] < current_date + pd.Timedelta(hours=10))]
                 
                 delta_times = (dates_around_current_date["date"] - current_date).dt.total_seconds()
+                """
                 cs_sun_ra = CubicSpline(delta_times, dates_around_current_date["sun_ra"])
                 cs_sun_dec = CubicSpline(delta_times, dates_around_current_date["sun_dec"])
                 cs_planet_ra = CubicSpline(delta_times, dates_around_current_date[f"{self.selected_planet}_ra"])
@@ -237,15 +310,29 @@ class PlanetOrbitalSolver:
                 
                 series_row = {
                     "date": current_date,
-                    "sun_ra": sun_ra,
-                    "sun_dec": sun_dec,
-                    f"{self.selected_planet}_ra": planet_ra,
-                    f"{self.selected_planet}_dec": planet_dec,
+                    "sun_ra": np.float64(sun_ra),
+                    "sun_dec": np.float64(sun_dec),
+                    f"{self.selected_planet}_ra": np.float64(planet_ra),
+                    f"{self.selected_planet}_dec": np.float64(planet_dec),
+                    "angle_sun_planet": np.nan
                 }
+                """
+                cs_sun_lon = CubicSpline(delta_times, dates_around_current_date["sun_lon"])
+                cs_planet_lon = CubicSpline(delta_times, dates_around_current_date[f"{self.selected_planet}_lon"])
 
+                interp_sun_lon = cs_sun_lon(0.0)
+                interp_planet_lon = cs_planet_lon(0.0)
+                series_row = {
+                    "date": current_date,
+                    "sun_lon": np.float64(interp_sun_lon),
+                    f"{self.selected_planet}_lon": np.float64(interp_planet_lon),
+                }
                 series_rows.append(series_row)
 
             series_data = pd.DataFrame(series_rows)
+
+            series_data = solve_triangle(series_data, self.selected_planet)
+            
             self.data_oppositions_series.append(series_data)
 
         # setup plotting flags for the series
@@ -253,15 +340,88 @@ class PlanetOrbitalSolver:
         self.data_oppositions_series_plot = [True]*len(self.data_oppositions_series)
     
         return series_lengths, self.data_oppositions_series_plot
+    
+    def find_planet_coordinates(self):
+        """Find the coordinates of the planets for each date in the data.
+        
+        Returns
+        -------
+        coordinates: dict
+        Dictionary containing the coordinates of the planets for each date in the data.
 
-    def reset_planet(self, planet_name):
+        Raises
+        ------
+        PlanetOrbitalSolverError if no planet is selected or if no oppositions series are found.
+        """
+        if self.selected_planet is None:
+            raise PlanetOrbitalSolverError("No planet selected.")
+        if len(self.data_oppositions_series) == 0:
+            raise PlanetOrbitalSolverError("No oppositions series found. Please run find_oppositions_series() first.")
+
+        # Rebuild coordinates from scratch so deselected series are removed from the plot.
+        self.earth_coordinates = {}
+        self.planet_coordinates = {}
+        self.metrics = {}
+        self.total_dispersion = 0.0
+        self.total_chi2 = 0.0
+        self.total_points = 0
+        
+        for data_oppositions_series, data_oppositions_series_plot in zip(self.data_oppositions_series, self.data_oppositions_series_plot):
+            if not data_oppositions_series_plot:
+                continue
+
+            # Earth-Sun distance
+            earth_lon_heliocentric = np.radians((data_oppositions_series["sun_lon"] + 180) % 360)
+            earth_sun_distance = orbital_radius(
+                self.earth_semimajor_axis, self.earth_eccentricity, earth_lon_heliocentric, self.earth_phase)
+            data_oppositions_series["earth_r"] = earth_sun_distance
+            
+            # Planet-Sun distance
+            angle_at_earth = np.radians(data_oppositions_series["angle_at_earth"])
+            angle_at_planet = np.radians(data_oppositions_series[f"angle_at_{self.selected_planet}"])
+            planet_sun_distance = earth_sun_distance * np.sin(angle_at_earth) / np.sin(angle_at_planet)
+            planet_lon_heliocentric = np.radians((data_oppositions_series["sun_lon"].iloc[0] + 180) % 360)
+
+            # store the cartesian coordinates for the plot
+            self.earth_coordinates[data_oppositions_series["date"].iloc[0]] = (
+                earth_sun_distance * np.cos(earth_lon_heliocentric),
+                earth_sun_distance * np.sin(earth_lon_heliocentric))
+            self.planet_coordinates[data_oppositions_series["date"].iloc[0]] = (
+                planet_sun_distance * np.cos(planet_lon_heliocentric),
+                planet_sun_distance * np.sin(planet_lon_heliocentric),
+            )
+
+            ##########################################
+            # compute per-series performance metrics #
+            ##########################################
+
+            # keep the dispersion values for the series to show in the table in the UI
+            mean = np.mean(planet_sun_distance)
+            num_points = planet_sun_distance.shape[0]
+            self.total_points += num_points
+            self.total_dispersion += np.sum((planet_sun_distance - mean)**2)
+            
+            # keep the chi2 values for the series to show in the table in the UI
+            predicted_planet_sun_distance = orbital_radius(
+                self.planet_semimajor_axis, self.planet_eccentricity, planet_lon_heliocentric, self.planet_phase)
+            chi2 = np.sum((planet_sun_distance - predicted_planet_sun_distance)**2)
+            self.total_chi2 += chi2
+
+            self.metrics[data_oppositions_series["date"].iloc[0]] = (
+                np.std(planet_sun_distance),
+                chi2,
+                num_points,
+            )
+
+        self.total_dispersion = np.sqrt(self.total_dispersion / self.total_points) if self.total_points > 0 else 0.0
+
+
+    def reset_planet(self):
         """
         Reset the selected planet and its properties.
-
-        Arguments
-        ---------
-        planet_name: str
-        Name of the planet to be reset.
+        
+        This method clears the selected planet, resets the orbital parameters, 
+        and clears any stored opposition data.
         """
 
         self.selected_planet = None
@@ -271,31 +431,45 @@ class PlanetOrbitalSolver:
         self.earth_period = PLANET_PERIODS["earth"]
 
         # reset opposition data
+        self.reset_opposition_data()
+
+        # reset orbital parameters
+        self.reset_orbital_parameters()
+
+    def reset_opposition_data(self):
+        """
+        Reset the opposition data for the selected planet.
+        
+        This method clears any stored opposition data, including the dates of oppositions 
+        and the series of yearly positions based on those oppositions.
+        """
         self.data_oppositions = None
         self.data_oppositions_series = []
         self.data_oppositions_series_plot = []
-        """Old code
-        self.dates = [self.start_date]
 
-        self.earth_theta.clear()
-        self.earth_x.clear()
-        self.earth_y.clear()
-        self.planet_theta.clear()
-        self.planet_x.clear()
-        self.planet_y.clear()
-
-        if planet_name in ["Mercury", "Venus"]:
-            self.planet_a = 0.5
-        else:
-            self.planet_a = 1.5
-            # TODO: delte this line when the model is ready
-            self.planet_a = 1.524  # Mars semi-major axis in AU
-        self.planet_e = 0
-        self.relative_phase = 0.0
-        # TODO: delte this line when the model is ready
-        self.planet_e = 0.0934  # Mars eccentricity
-        self.earth_e = 0.0167  # Earth eccentricity
+    def reset_orbital_parameters(self):
         """
+        Reset the orbital parameters of the selected planet to default values.
+        
+        This method sets the semi-major axis, eccentricity, and phase of the selected planet 
+        to their default values based on the known parameters of the planets in our solar system.
+        """
+        if self.selected_planet is None:
+            self.planet_semimajor_axis = None
+            self.planet_eccentricity = None
+            self.planet_phase = None
+        elif self.selected_planet in ["mercury", "venus"]:
+            self.planet_semimajor_axis = 0.5 # in AU
+            self.planet_eccentricity = 0.0
+            self.planet_phase = 0.0  # in radians
+        else:
+            self.planet_semimajor_axis = 1.5 # in AU
+            self.planet_eccentricity = 0.0
+            self.planet_phase = 0.0 # in radians
+
+        self.earth_semimajor_axis = 1.0
+        self.earth_eccentricity = 0.0167
+        self.earth_phase = 0.0 # in radians
 
     def set_selected_planet(self, planet_name):
         """
@@ -310,112 +484,18 @@ class PlanetOrbitalSolver:
         -----
         PlanetOrbitalSolverError if no valid planet is selected.
         """
-        if planet_name not in self.available_planets:
+        if planet_name not in self.available_planets and planet_name is not None:
             raise PlanetOrbitalSolverError(
                 f"Invalid planet name: {planet_name}. Available planets: {self.available_planets}")
 
         # Reset the active dates if changing the planet
         if self.selected_planet is None or self.selected_planet != planet_name:
-            self.reset_planet(planet_name)
+            self.reset_planet()
 
         self.selected_planet = planet_name
         if self.selected_planet is not None:
-           # update the period of the selected planet
-           self.planet_period = PLANET_PERIODS[self.selected_planet] # in days
-           
-           """Old code
-           self.set_planet_positions(self.dates[0])
-           self.set_model_positions()
-           """
+            # update the period of the selected planet
+            self.planet_period = PLANET_PERIODS[self.selected_planet] # in days
 
-    def set_model_positions(self):
-        """
-        Compute the theoretical positions of the planets given the 
-        selected planetary orbit parameters.
-        Store them in the respective dictionaries.
-
-        Raise
-        -----
-        PlanetOrbitalSolverError if no planet is selected.
-        """
-        if self.selected_planet is None:
-            raise PlanetOrbitalSolverError("No planet selected.")
-
-        # Get the period of the selected planet
-        planet_period = PLANET_PERIODS[self.selected_planet]
-        earth_period = PLANET_PERIODS["Earth"]
-
-        self.model_time_planet = np.linspace(
-            0, planet_period, N_MODEL_POINTS) # days 
-
-        self.model_time_earth = np.linspace(
-            0, earth_period, N_MODEL_POINTS)  # days
-
-        #######################
-        # target planet model #
-        #######################
-        planet_theta = np.pi - (2 * np.pi / planet_period) * self.model_time_planet
-        planet_r = self.planet_a * (1 - self.planet_e**2) / (1 + self.planet_e * np.cos(planet_theta - self.planet_phase))
-        self.model_planet_x = planet_r * np.cos(planet_theta)
-        self.model_planet_y = planet_r * np.sin(planet_theta)
-
-        ###############
-        # Earth model #
-        ###############
-        earth_theta = np.pi - (2 * np.pi / earth_period) * self.model_time_earth
-        earth_r = self.earth_a * (1 - self.earth_e**2) / (1 + self.earth_e * np.cos(earth_theta - self.earth_phase))
-        self.model_earth_x = earth_r * np.cos(earth_theta)
-        self.model_earth_y = earth_r * np.sin(earth_theta)
-
-
-    def set_planet_positions(self, date):
-        """
-        Compute the positions of the planets for a given date.
-        Store them in the respective dictionaries.
-
-        Arguments
-        ---------
-        date: str
-        Date for which to compute the positions.
-
-        Raises
-        ------
-        PlanetOrbitalSolverError if no planet is selected or if the date is not in the data.
-        """
-        if self.selected_planet is None:
-            raise PlanetOrbitalSolverError("No planet selected.")
-
-        # Get the indexs of the selected dates
-        planet_period = PLANET_PERIODS[self.selected_planet]
-        indexs = get_date_indexs(date, self.end_date, planet_period, self.data["Date"])
-
-        ##########################
-        # target planet position #
-        ##########################
-    
-        # Calculate the position of the selected planet
-        planet_theta = self.data.loc[indexs, f"{self.selected_planet}_lon"].values[:1]
-        planet_r = self.planet_a * (1 - self.planet_e**2) / (1 + self.planet_e * np.cos(planet_theta))
-        planet_x = planet_r * np.cos(planet_theta)
-        planet_y = planet_r * np.sin(planet_theta)
-        
-        # Keep planet position
-        self.planet_theta[date] = planet_theta
-        self.planet_x[date] = planet_x
-        self.planet_y[date] = planet_y
-
-        ###################
-        # Earth positions #
-        ###################
-
-        # Assuming Earth and the selected planet are coplanar
-        earth_theta = self.data.loc[indexs, f"Earth_lon"].values
-        earth_r = self.earth_a * (1 - self.earth_e**2) / (1 + self.earth_e * np.cos(earth_theta))
-        earth_x = earth_r * np.cos(earth_theta)
-        earth_y = earth_r * np.sin(earth_theta)
-        
-        # Keep Earth position 
-        self.earth_theta[date] = earth_theta # Earth angle with respect to Sun
-        self.earth_x[date] = earth_x
-        self.earth_y[date] = earth_y
-        
+            # update orbital parameters of the selected planet
+            self.reset_orbital_parameters()
