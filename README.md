@@ -12,6 +12,7 @@ After you have the environment, you can install stacking with:
 ```
 git clone https://github.com/finestres-al-cel/planet_orbits.git
 cd planet_orbits
+pip install -r requirements.txt
 pip install -e .
 ```
 Optionally, you can add the path to planet_orbits to your bashrc:

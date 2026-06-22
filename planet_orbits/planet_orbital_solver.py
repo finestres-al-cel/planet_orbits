@@ -288,8 +288,8 @@ class PlanetOrbitalSolver:
                 f"{self.selected_planet}_lon": np.float64(self.data_oppositions.loc[index, f"{self.selected_planet}_lon"]),
             })
 
-            for index in range(1, series_length):
-                current_date = initial_date + pd.Timedelta(seconds=round(index*period_in_seconds))
+            for index2 in range(1, series_length):
+                current_date = initial_date + pd.Timedelta(seconds=round(index2*period_in_seconds))
 
                 # select some dates around current_date to interpolate the coordinates
                 dates_around_current_date = self.data[
@@ -335,6 +335,10 @@ class PlanetOrbitalSolver:
             
             self.data_oppositions_series.append(series_data)
 
+            if index == 0:
+                print("Found series of yearly positions for the first opposition:")
+                print(series_data)
+
         # setup plotting flags for the series
         # default is to plot all the series, but the user can select which ones to plot in the UI
         self.data_oppositions_series_plot = [True]*len(self.data_oppositions_series)
@@ -371,7 +375,7 @@ class PlanetOrbitalSolver:
                 continue
 
             # Earth-Sun distance
-            earth_lon_heliocentric = np.radians((data_oppositions_series["sun_lon"] + 180) % 360)
+            earth_lon_heliocentric = np.radians((data_oppositions_series["sun_lon"].values + 180) % 360)
             earth_sun_distance = orbital_radius(
                 self.earth_semimajor_axis, self.earth_eccentricity, earth_lon_heliocentric, self.earth_phase)
             data_oppositions_series["earth_r"] = earth_sun_distance
@@ -380,7 +384,18 @@ class PlanetOrbitalSolver:
             angle_at_earth = np.radians(data_oppositions_series["angle_at_earth"])
             angle_at_planet = np.radians(data_oppositions_series[f"angle_at_{self.selected_planet}"])
             planet_sun_distance = earth_sun_distance * np.sin(angle_at_earth) / np.sin(angle_at_planet)
-            planet_lon_heliocentric = np.radians((data_oppositions_series["sun_lon"].iloc[0] + 180) % 360)
+            planet_lon_heliocentric = np.radians((data_oppositions_series["sun_lon"].values[0] + 180) % 360)
+
+
+            print("Finding planet coordinates")
+            for date, earth_r, planet_r in zip(data_oppositions_series["date"], earth_sun_distance, planet_sun_distance):
+                print(f"Date: {date}, Earth-Sun distance: {earth_r:.5f} AU, Planet-Sun distance: {planet_r:.5f} AU")
+
+            # skip the first date of the series, as it serves as anchor and the triangulation is not valid
+            earth_sun_distance = earth_sun_distance[1:]
+            earth_lon_heliocentric = earth_lon_heliocentric[1:]
+            planet_sun_distance = planet_sun_distance[1:]
+            #planet_lon_heliocentric = planet_lon_heliocentric[1:]
 
             # store the cartesian coordinates for the plot
             self.earth_coordinates[data_oppositions_series["date"].iloc[0]] = (
@@ -468,7 +483,7 @@ class PlanetOrbitalSolver:
             self.planet_phase = 0.0 # in radians
 
         self.earth_semimajor_axis = 1.0
-        self.earth_eccentricity = 0.0167
+        self.earth_eccentricity = 0.0 # 0.0167
         self.earth_phase = 0.0 # in radians
 
     def set_selected_planet(self, planet_name):
