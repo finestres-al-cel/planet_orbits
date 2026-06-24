@@ -131,7 +131,7 @@ class CoordinatesView(QWidget):
         self.planet_period_label = QLabel("Orbital period (planet) [days]")
         self.planet_period_box = QDoubleSpinBox()
         self.planet_period_box.setDecimals(5)
-        self.planet_period_box.setRange(0.1, 10000.0)
+        self.planet_period_box.setRange(0.001, 70000.0)
         self.planet_period_box.setSingleStep(0.01)
         self.planet_period_box.valueChanged.connect(self._onPeriodsChanged)
 
@@ -139,7 +139,7 @@ class CoordinatesView(QWidget):
         self.earth_period_label = QLabel("Orbital period (Earth) [days]")
         self.earth_period_box = QDoubleSpinBox()
         self.earth_period_box.setDecimals(5)
-        self.earth_period_box.setRange(0.1, 10000.0)
+        self.earth_period_box.setRange(0.001, 70000.0)
         self.earth_period_box.setSingleStep(0.01)
         self.earth_period_box.valueChanged.connect(self._onPeriodsChanged)
         
@@ -158,7 +158,7 @@ class CoordinatesView(QWidget):
         self.planet_semimajor_axis_box = QDoubleSpinBox()
         self.planet_semimajor_axis_box.setDecimals(ORBITAL_PARAM_DECIMALS)
         self.planet_semimajor_axis_box.setRange(0.1, 100.0)
-        self.planet_semimajor_axis_box.setSingleStep(0.01)
+        self.planet_semimajor_axis_box.setSingleStep(ORBITAL_PARAM_CHANGE_TOLERANCE)
         self.planet_semimajor_axis_box.valueChanged.connect(self._onOrbitalParamsChanged)
 
         # planet eccentricity input
@@ -166,7 +166,7 @@ class CoordinatesView(QWidget):
         self.planet_eccentricity_box = QDoubleSpinBox()
         self.planet_eccentricity_box.setDecimals(ORBITAL_PARAM_DECIMALS)
         self.planet_eccentricity_box.setRange(0.0, 1.0)
-        self.planet_eccentricity_box.setSingleStep(0.01)
+        self.planet_eccentricity_box.setSingleStep(ORBITAL_PARAM_CHANGE_TOLERANCE)
         self.planet_eccentricity_box.valueChanged.connect(self._onOrbitalParamsChanged)
 
         # planet phase input
@@ -174,7 +174,7 @@ class CoordinatesView(QWidget):
         self.planet_phase_box = QDoubleSpinBox()
         self.planet_phase_box.setDecimals(ORBITAL_PARAM_DECIMALS)
         self.planet_phase_box.setRange(0.0, 360.0)
-        self.planet_phase_box.setSingleStep(1.0)
+        self.planet_phase_box.setSingleStep(ORBITAL_PARAM_CHANGE_TOLERANCE)
         self.planet_phase_box.valueChanged.connect(self._onOrbitalParamsChanged)
 
         # planet semi-major axis input
@@ -182,7 +182,7 @@ class CoordinatesView(QWidget):
         self.earth_semimajor_axis_box = QDoubleSpinBox()
         self.earth_semimajor_axis_box.setDecimals(ORBITAL_PARAM_DECIMALS)
         self.earth_semimajor_axis_box.setRange(0.1, 100.0)
-        self.earth_semimajor_axis_box.setSingleStep(0.01)
+        self.earth_semimajor_axis_box.setSingleStep(ORBITAL_PARAM_CHANGE_TOLERANCE)
         self.earth_semimajor_axis_box.valueChanged.connect(self._onOrbitalParamsChanged)
 
         # earth eccentricity input
@@ -190,7 +190,7 @@ class CoordinatesView(QWidget):
         self.earth_eccentricity_box = QDoubleSpinBox()
         self.earth_eccentricity_box.setDecimals(ORBITAL_PARAM_DECIMALS)
         self.earth_eccentricity_box.setRange(0.0, 1.0)
-        self.earth_eccentricity_box.setSingleStep(0.01)
+        self.earth_eccentricity_box.setSingleStep(ORBITAL_PARAM_CHANGE_TOLERANCE)
         self.earth_eccentricity_box.valueChanged.connect(self._onOrbitalParamsChanged)
 
         # earth phase input
@@ -198,7 +198,7 @@ class CoordinatesView(QWidget):
         self.earth_phase_box = QDoubleSpinBox()
         self.earth_phase_box.setDecimals(ORBITAL_PARAM_DECIMALS)
         self.earth_phase_box.setRange(0.0, 360.0)
-        self.earth_phase_box.setSingleStep(1.0)
+        self.earth_phase_box.setSingleStep(ORBITAL_PARAM_CHANGE_TOLERANCE)
         self.earth_phase_box.valueChanged.connect(self._onOrbitalParamsChanged)
 
         # Button to plot data

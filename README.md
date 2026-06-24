@@ -21,6 +21,9 @@ export PLANET_ORBITS_BASE=<path to your planet_orbits repo>
 ```
 Or you can add `planet_orbits/` to your `PYTHONPATH`. Both of these are optional and planet_orbits will work without them.
 
+## Usage 
+See `INSTRUCTIONS.md`
+
 
 ## For Developers
 Before submitting a PR please make sure to:

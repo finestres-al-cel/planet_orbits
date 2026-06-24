@@ -145,27 +145,12 @@ class PlanetOrbitalSolver:
             raise PlanetOrbitalSolverError("No planet selected.")
 
         # Find the dates of oppositions using the data
-        """
-        angle_sun_planet = angular_separation(
-            np.radians(self.data["sun_ra"].values),
-            np.radians(self.data["sun_dec"].values),
-            np.radians(self.data[f"{self.selected_planet}_ra"].values),
-            np.radians(self.data[f"{self.selected_planet}_dec"].values)
-        )
-        diff = np.pi - angle_sun_planet
-        """
         sun_lon_anti = (self.data["sun_lon"] + 180) % 360
         diff = np.radians(np.fabs(sun_lon_anti - self.data[f"{self.selected_planet}_lon"].values))
         opposition_indices = np.where(np.isclose(diff, 0, atol=ANGULAR_TOLERANCE_RADIANS))[0]
         
-        """
-        cols = ["date", "sun_ra", "sun_dec", f"{self.selected_planet}_ra", f"{self.selected_planet}_dec"]
-        """
         cols = ["date", "sun_lon", f"{self.selected_planet}_lon"]
         df_aux = self.data.iloc[opposition_indices][cols].copy()#.reset_index(drop=True)
-        """
-        df_aux["angle_sun_planet"] = np.degrees(angle_sun_planet[opposition_indices])
-        """
         df_aux["delta_angle"] = np.degrees(diff[opposition_indices])
         
         consecutive_groups = (df_aux["date"].diff() != pd.Timedelta(hours=1)).cumsum()
@@ -180,19 +165,6 @@ class PlanetOrbitalSolver:
             date_min_spline = group["date"].iloc[0] + pd.to_timedelta(delta_time_min_spline, unit="s")
 
             # now that we have the estimated time, use a cubic interpolation to find the corresponding coordinates 
-            """
-            cs_sun_ra = CubicSpline(delta_times, group["sun_ra"])
-            cs_sun_dec = CubicSpline(delta_times, group["sun_dec"])
-            cs_planet_ra = CubicSpline(delta_times, group[f"{self.selected_planet}_ra"])
-            cs_planet_dec = CubicSpline(delta_times, group[f"{self.selected_planet}_dec"])
-
-            sun_ra = cs_sun_ra(delta_time_min_spline)
-            sun_dec = cs_sun_dec(delta_time_min_spline)  
-            planet_ra = cs_planet_ra(delta_time_min_spline)
-            planet_dec = cs_planet_dec(delta_time_min_spline)
-            #angle_sun_planet = angular_separation(
-            #    np.radians(sun_ra), np.radians(sun_dec), np.radians(planet_ra), np.radians(planet_dec))
-            """
             cs_sun_lon = CubicSpline(delta_times, group["sun_lon"])
             cs_planet_lon = CubicSpline(delta_times, group[f"{self.selected_planet}_lon"]) 
 
@@ -201,24 +173,10 @@ class PlanetOrbitalSolver:
             interp_planet_lon = cs_planet_lon(delta_time_min_spline)
             interp_diff = np.fabs(interp_sun_lon_anti - interp_planet_lon)
 
-            """
-            opposition_row = {
-                "date": date_min_spline,
-                "sun_ra": sun_ra,
-                "sun_dec": sun_dec,
-                f"{self.selected_planet}_ra": planet_ra,
-                f"{self.selected_planet}_dec": planet_dec,
-                #"angle_sun_planet": np.degrees(angle_sun_planet),
-                #"delta_angle": np.degrees(np.pi - angle_sun_planet)
-
-            }
-            """
-
             opposition_row = {
                 "date": date_min_spline,
                 "sun_lon": interp_sun_lon,
                 f"{self.selected_planet}_lon": interp_planet_lon,
-                #"angle_sun_planet": np.degrees(interp_diff),
                 "delta_angle": interp_diff,
             }
 
@@ -271,17 +229,7 @@ class PlanetOrbitalSolver:
             series_lengths.append(series_length)
             
             series_rows = []
-            """
-            series_rows.append({
-                "date": self.data_oppositions.loc[index, "date"],
-                "sun_ra": np.float64(self.data_oppositions.loc[index, "sun_ra"]),
-                "sun_dec": np.float64(self.data_oppositions.loc[index, "sun_dec"]),
-                f"{self.selected_planet}_ra": np.float64(self.data_oppositions.loc[index, f"{self.selected_planet}_ra"]),
-                f"{self.selected_planet}_dec": np.float64(self.data_oppositions.loc[index, f"{self.selected_planet}_dec"]),
-                "angle_sun_planet": np.float64(self.data_oppositions.loc[index, "angle_sun_planet"]),
-                #"delta_angle": np.float64(self.data_oppositions.loc[index, "delta_angle"]),
-            })
-            """
+
             series_rows.append({
                 "date": self.data_oppositions.loc[index, "date"],
                 "sun_lon": np.float64(self.data_oppositions.loc[index, "sun_lon"]),
@@ -297,31 +245,20 @@ class PlanetOrbitalSolver:
                     (self.data["date"] < current_date + pd.Timedelta(hours=10))]
                 
                 delta_times = (dates_around_current_date["date"] - current_date).dt.total_seconds()
-                """
-                cs_sun_ra = CubicSpline(delta_times, dates_around_current_date["sun_ra"])
-                cs_sun_dec = CubicSpline(delta_times, dates_around_current_date["sun_dec"])
-                cs_planet_ra = CubicSpline(delta_times, dates_around_current_date[f"{self.selected_planet}_ra"])
-                cs_planet_dec = CubicSpline(delta_times, dates_around_current_date[f"{self.selected_planet}_dec"])
-
-                sun_ra = cs_sun_ra(0.0)
-                sun_dec = cs_sun_dec(0.0)  
-                planet_ra = cs_planet_ra(0.0)
-                planet_dec = cs_planet_dec(0.0)
-                
-                series_row = {
-                    "date": current_date,
-                    "sun_ra": np.float64(sun_ra),
-                    "sun_dec": np.float64(sun_dec),
-                    f"{self.selected_planet}_ra": np.float64(planet_ra),
-                    f"{self.selected_planet}_dec": np.float64(planet_dec),
-                    "angle_sun_planet": np.nan
-                }
-                """
+        
+                print("####################")
+                print(f"Opposition {index+1}/{self.data_oppositions.shape[0]}, series {index2}/{series_length}")
+                print(f"Current date: {current_date}")
+                print(f"Dates around current date: {dates_around_current_date['date'].values}")
+                print(f"Delta times: {delta_times.values}")
+                print(f"Sun longitudes around current date: {dates_around_current_date['sun_lon'].values}")
                 cs_sun_lon = CubicSpline(delta_times, dates_around_current_date["sun_lon"])
                 cs_planet_lon = CubicSpline(delta_times, dates_around_current_date[f"{self.selected_planet}_lon"])
 
                 interp_sun_lon = cs_sun_lon(0.0)
                 interp_planet_lon = cs_planet_lon(0.0)
+                print("Interpolated Sun longitude:", interp_sun_lon)
+                print("####################")
                 series_row = {
                     "date": current_date,
                     "sun_lon": np.float64(interp_sun_lon),
@@ -386,7 +323,6 @@ class PlanetOrbitalSolver:
             planet_sun_distance = earth_sun_distance * np.sin(angle_at_earth) / np.sin(angle_at_planet)
             planet_lon_heliocentric = np.radians((data_oppositions_series["sun_lon"].values[0] + 180) % 360)
 
-
             print("Finding planet coordinates")
             for date, earth_r, planet_r in zip(data_oppositions_series["date"], earth_sun_distance, planet_sun_distance):
                 print(f"Date: {date}, Earth-Sun distance: {earth_r:.5f} AU, Planet-Sun distance: {planet_r:.5f} AU")
@@ -395,8 +331,12 @@ class PlanetOrbitalSolver:
             earth_sun_distance = earth_sun_distance[1:]
             earth_lon_heliocentric = earth_lon_heliocentric[1:]
             planet_sun_distance = planet_sun_distance[1:]
-            #planet_lon_heliocentric = planet_lon_heliocentric[1:]
-
+            
+            # the first planet serve as anchor, and is not valid
+            # we can replace it with the theoretical value of the planet-sun distance based on the orbital parameters
+            #planet_sun_distance[0] = orbital_radius(
+            #    self.planet_semimajor_axis, self.planet_eccentricity, planet_lon_heliocentric, self.planet_phase)
+            
             # store the cartesian coordinates for the plot
             self.earth_coordinates[data_oppositions_series["date"].iloc[0]] = (
                 earth_sun_distance * np.cos(earth_lon_heliocentric),
