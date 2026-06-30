@@ -1,7 +1,7 @@
-astropy >= 7.0.1
+astropy >= 8.0.0
 jplephem >= 2.22
-matplotlib >= 3.10.1
-pandas >= 2.2.3
-pyqt6 >= 6.9.0
+matplotlib >= 3.11.0
+pandas >= 3.0.3
+pyqt6 >= 6.11.0
 requests >= 2.34.2
 scipy >= 1.17.1
